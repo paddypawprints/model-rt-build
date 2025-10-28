@@ -1,0 +1,29 @@
+[project]
+name = "yolov8n"
+version = "0.1.0"
+description = "YOLOv8n build/runtime environment for TensorRT engine export and verification."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+  { name = "Your Name", email = "you@example.com" }
+]
+requires-python = ">=3.8"
+
+dependencies = [
+  "ultralytics>=8.0.0",
+  "numpy>=1.22",
+  "pillow>=9.0",
+  "opencv-python-headless>=4.6",
+  "onnx>=1.14",
+  "onnxruntime>=1.15",
+]
+
+[project.optional-dependencies]
+# Install on machines with CUDA / GPU support instead of onnxruntime
+gpu = ["onnxruntime-gpu>=1.15"]
+# TensorRT Python wheel is environment-specific; include here as a reminder only.
+tensorrt = []
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"

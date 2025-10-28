@@ -1,0 +1,47 @@
+[project]
+name = "mobileclip"
+version = "0.1.0"
+description = "Mobile CLIP utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "You", email = "you@example.com" }
+]
+
+# NOTE: torch/torchvision are platform-specific; prefer to install matching wheels for your device.
+dependencies = [
+  "clip-benchmark>=1.4.0",
+  "datasets>=2.21.0",
+  "open-clip-torch>=3.2.0",
+  "timm>=0.9.5",
+  "torch>=2.9.0",            # on Jetson you likely install platform wheel (cu126) separately
+  "torchvision>=0.24.0",     # platform-specific wheel
+  "webdataset>=0.2.31",
+  "pycocoevalcap>=1.2",
+  "scikit-learn<2,>=1.0",
+  "transformers>=4.56.0",
+  "pyarrow>=22.0.0",
+  "requests>=2.32.2",
+  "xxhash>=3.6.0",
+  "pycocotools>=2.0.2",
+  "huggingface-hub>=0.25.0",
+  "tokenizers>=0.22.0",
+  "aiohttp>=3.13.0",
+  "pyyaml>=5.4.1",
+  "numpy>=1.24.2",
+  "pycuda",                  # may need specific wheel/version for Jetson
+  "onnxruntime-gpu==1.23.0", # if you used the GPU aarch64 wheel
+  "onnxscript",
+  "open_clip_torch",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "black",
+  "flake8",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
