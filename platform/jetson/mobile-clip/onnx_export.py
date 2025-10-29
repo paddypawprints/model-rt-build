@@ -37,12 +37,14 @@ image_encoder = model.visual
 text_encoder = model.text
 
 # Get the resolution from the preprocessor to create a dummy image
-input_resolution = model.visual.image_size
+#input_resolution = model.visual.image_size
+print(f"Input resolution {model.visual.image_size}")
+input_resolution = 256
 
 # Create dummy inputs for the image and text encoders
 # Dummy image input: (batch_size, channels, height, width)
-#dummy_image = torch.randn(1, 3, input_resolution, input_resolution)
-dummy_image = image
+dummy_image = torch.randn(4, 3, input_resolution, input_resolution)
+#dummy_image = image
 # Dummy text input: (batch_size, sequence_length)
 dummy_text = torch.randint(low=0, high=model.text.context_length, size=(1, model.text.context_length))
 
@@ -58,7 +60,7 @@ torch.onnx.export(
         "image_input": {0: "batch_size"},
         "image_features": {0: "batch_size"},
     },
-    opset_version=14,
+    opset_version=18,
 )
 print("Image encoder exported successfully.")
 
@@ -74,7 +76,7 @@ torch.onnx.export(
         "text_input": {0: "batch_size"},
         "text_features": {0: "batch_size"},
     },
-    opset_version=14,
+    opset_version=18,
 )
 print("Text encoder exported successfully.")
 

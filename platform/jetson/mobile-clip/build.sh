@@ -5,6 +5,7 @@ if [ ! -d "ml-mobileclip" ]; then
     python -m pip install --upgrade pip setuptools wheel
     python -m pip --version   # verify upgraded pip - v25 seems to work
     python -m pip install -e . 
+    cd ..
 fi
 if [ ! -d "open_clip" ]; then
     git clone https://github.com/mlfoundations/open_clip.git
@@ -28,7 +29,7 @@ if [ ! -f "openclip_image_encoder.onnx" ]; then
     exit 1
 fi
 echo 4. create image engine
-/usr/src/tensorrt/bin/trtexec --onnx=openclip_image_encoder.onnx --saveEngine=image_fp16.engine --fp16
+/usr/src/tensorrt/bin/trtexec --onnx=openclip_image_encoder.onnx --minShapes=image_input:1x3x256x256 --optShapes=image_input:4x3x256x256 --maxShapes=image_input:8x3x256x256 --saveEngine=image_fp16.engine --fp16
 echo 5. Create text engine
 /usr/src/tensorrt/bin/trtexec --onnx=openclip_text_encoder.onnx --saveEngine=text_fp16.engine --fp16
 echo 6. test
