@@ -31,8 +31,8 @@ import pycuda.driver as cuda
 
 import torch
 import torch.nn.functional as F
-import open_clip
-from mobileclip.modules.common.mobileone import reparameterize_model
+#import open_clip
+#from mobileclip.modules.common.mobileone import reparameterize_model
 
 # Hard-coded quick config
 ENGINE_PATH = "image_fp16.engine"
@@ -41,6 +41,19 @@ MODEL_NAME = "MobileCLIP2-S0"
 PRETRAINED_PATH = "/home/patrick/mobileclip2_s0.pt"
 TEXT_PROMPT = "a photo of a cat"
 
+def preprocess_torch(pil: Image.Image, target_h: int = 256, target_w: int = 256,
+               mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0)) -> "torch.Tensor":
+    pil = pil.convert("RGB")
+    if pil.size != (target_w, target_h):
+        pil = pil.resize((target_w, target_h), Image.BILINEAR)
+    arr = np.asarray(pil).astype(np.float32) / 255.0  # HWC [0,1]
+    mean_arr = np.array(mean, dtype=np.float32).reshape(1, 1, 3)
+    std_arr = np.array(std, dtype=np.float32).reshape(1, 1, 3)
+    arr = (arr - mean_arr) / (std_arr + 1e-12)
+    chw = arr.transpose(2, 0, 1)  # C,H,W
+    chw = np.ascontiguousarray(chw)  # ensure contiguous for torch.from_numpy
+    tensor = torch.from_numpy(chw).unsqueeze(0).to(dtype=torch.float32)  # 1,C,H,W
+    return tensor.contiguous()
 
 def replace_dynamic_dims(declared_shape: tuple, concrete_input_shape: tuple) -> tuple:
     """
@@ -107,18 +120,20 @@ def main():
         print("TRT engine declared output shape, dtype:", declared_out_shape, out_dtype)
 
         # Load model and preprocess
-        model_kwargs = {}
-        if not (MODEL_NAME.endswith("S3") or MODEL_NAME.endswith("S4") or MODEL_NAME.endswith("L-14")):
-            model_kwargs = {"image_mean": (0, 0, 0), "image_std": (1, 1, 1)}
+#        model_kwargs = {}
+#        if not (MODEL_NAME.endswith("S3") or MODEL_NAME.endswith("S4") or MODEL_NAME.endswith("L-14")):
+#            model_kwargs = {"image_mean": (0, 0, 0), "image_std": (1, 1, 1)}
 
-        model, _, preprocess = open_clip.create_model_and_transforms(MODEL_NAME, pretrained=PRETRAINED_PATH, **model_kwargs)
-        tokenizer = open_clip.get_tokenizer(MODEL_NAME)
-        model.eval()
-        model = reparameterize_model(model)
+#        model, _, preprocess = open_clip.create_model_and_transforms(MODEL_NAME, pretrained=PRETRAINED_PATH, **model_kwargs)
+#        tokenizer = open_clip.get_tokenizer(MODEL_NAME)
+#        model.eval()
+#        model = reparameterize_model(model)
 
         # Preprocess image to a torch tensor (1,C,H,W)
         pil = Image.open(IMAGE_PATH).convert("RGB")
-        torch_input = preprocess(pil).unsqueeze(0)  # (1,C,H,W)
+#        torch_input = preprocess(pil).unsqueeze(0)  # (1,C,H,W)
+        torch_input = preprocess_torch(pil)
+        print(f"torch_input {torch_input.shape}")
 
         # If declared spatial dims are concrete (>0) and differ, resize CPU tensor
         try:
@@ -149,24 +164,9 @@ def main():
         concrete_in_shape = tuple(concrete_in_shape)
         print("Concrete input shape to use:", concrete_in_shape)
 
-        # If ctx supports set_tensor_shape, set it; otherwise we'll infer concrete output shape
-        if hasattr(ctx, "set_tensor_shape"):
-            try:
-                ctx.set_tensor_shape(INPUT_TENSOR_NAME, concrete_in_shape)
-                # re-query shapes
-                in_shape = tuple(ctx.get_tensor_shape(INPUT_TENSOR_NAME))
-                out_shape = tuple(ctx.get_tensor_shape(OUTPUT_TENSOR_NAME))
-                print("After set_tensor_shape -> in_shape:", in_shape, "out_shape:", out_shape)
-            except Exception as e:
-                print("Warning: ctx.set_tensor_shape failed:", e)
-                in_shape = concrete_in_shape
-                # derive concrete output shape by replacing dynamic dims
-                out_shape = replace_dynamic_dims(declared_out_shape, in_shape)
-                print("Derived out_shape (no set_tensor_shape):", out_shape)
-        else:
-            in_shape = concrete_in_shape
-            out_shape = replace_dynamic_dims(declared_out_shape, in_shape)
-            print("ctx.set_tensor_shape not available; using in_shape and derived out_shape:", in_shape, out_shape)
+        in_shape = concrete_in_shape
+        out_shape = replace_dynamic_dims(declared_out_shape, in_shape)
+        print("Using in_shape and derived out_shape:", in_shape, out_shape)
 
         # Convert tensor to numpy with correct dtype and shape
         np_input = torch_input.cpu().numpy()
@@ -197,9 +197,6 @@ def main():
         d_out = cuda.mem_alloc(host_out.nbytes)
 
         # Bind by name (Jetson name-based API expected)
-        if not hasattr(ctx, "set_tensor_address"):
-            # If set_tensor_address is missing, try the binding-index path (but minimal here)
-            raise RuntimeError("ctx.set_tensor_address not available on this TRT build; this script expects Jetson name-based API.")
         ctx.set_tensor_address(INPUT_TENSOR_NAME, int(d_in))
         ctx.set_tensor_address(OUTPUT_TENSOR_NAME, int(d_out))
 
@@ -223,29 +220,29 @@ def main():
         print("TRT output shape:", trt_out.shape)
 
         # Compare with PyTorch model outputs
-        with torch.no_grad():
-            image_tensor = torch_input
-            image_feats = model.encode_image(image_tensor).cpu().numpy().astype(np.float32).ravel()
-            tokenized = tokenizer([TEXT_PROMPT])
-            text_feats = model.encode_text(tokenized).cpu().numpy().astype(np.float32).ravel()
-            image_feats /= np.linalg.norm(image_feats)
-            text_feats /= np.linalg.norm(text_feats)
+#        with torch.no_grad():
+#            image_tensor = torch_input
+#            image_feats = model.encode_image(image_tensor).cpu().numpy().astype(np.float32).ravel()
+#            tokenized = tokenizer([TEXT_PROMPT])
+#            text_feats = model.encode_text(tokenized).cpu().numpy().astype(np.float32).ravel()
+#            image_feats /= np.linalg.norm(image_feats)
+#            text_feats /= np.linalg.norm(text_feats)
 
         # Normalize TRT vector
-        trt_norm = np.linalg.norm(trt_vec)
-        trt_unit = (trt_vec / trt_norm) if trt_norm != 0 else trt_vec
+#        trt_norm = np.linalg.norm(trt_vec)
+#        trt_unit = (trt_vec / trt_norm) if trt_norm != 0 else trt_vec
 
         def cos(a, b):
             return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
-        print("Norms: TRT", np.linalg.norm(trt_vec), "Torch_image", np.linalg.norm(image_feats), "Torch_text", np.linalg.norm(text_feats))
-        print("Cosine TRT vs Torch_image:", cos(trt_vec, image_feats))
-        print("Cosine Torch_image vs Torch_text:", cos(image_feats, text_feats))
-        print("Cosine TRT vs Torch_text:", cos(trt_vec, text_feats))
+#        print("Norms: TRT", np.linalg.norm(trt_vec), "Torch_image", np.linalg.norm(image_feats), "Torch_text", np.linalg.norm(text_feats))
+#        print("Cosine TRT vs Torch_image:", cos(trt_vec, image_feats))
+#        print("Cosine Torch_image vs Torch_text:", cos(image_feats, text_feats))
+#        print("Cosine TRT vs Torch_text:", cos(trt_vec, text_feats))
 
         np.save("trt_image_features.npy", trt_vec)
-        np.save("torch_image_features.npy", image_feats)
-        np.save("torch_text_features.npy", text_feats)
+#        np.save("torch_image_features.npy", image_feats)
+#        np.save("torch_text_features.npy", text_feats)
         print("Saved trt_image_features.npy, torch_image_features.npy, torch_text_features.npy")
 
     except Exception:

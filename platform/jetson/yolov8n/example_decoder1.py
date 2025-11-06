@@ -268,6 +268,7 @@ def main(onnx_model: str, input_image: str, engine: str) -> List[dict]:
     # Display result
     cv2.imshow("image", original_image)
     cv2.waitKey(0)
+    cv2.imwrite('output_image.png', original_image)
     cv2.destroyAllWindows()
 
     return detections

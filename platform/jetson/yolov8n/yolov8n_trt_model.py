@@ -131,6 +131,8 @@ class Yolov8nTRT:
         out_elems = int(np.prod(out_shape))
         host_in = cuda.pagelocked_empty(in_elems, in_dtype)
         host_out = cuda.pagelocked_empty(out_elems, out_dtype)
+
+        
         src = np.ascontiguousarray(blob).ravel().astype(in_dtype, copy=False)
         if src.size != in_elems:
             raise RuntimeError(f"Input size mismatch: engine expects {in_elems} elements, got {src.size}")
